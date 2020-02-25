@@ -5,6 +5,7 @@ namespace App\Repository;
 use App\Entity\Member;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Common\Persistence\ManagerRegistry;
+use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * @method Member|null find($id, $lockMode = null, $lockVersion = null)
@@ -14,9 +15,34 @@ use Doctrine\Common\Persistence\ManagerRegistry;
  */
 class MemberRepository extends ServiceEntityRepository
 {
-    public function __construct(ManagerRegistry $registry)
+    private $manager;
+
+    public function __construct( ManagerRegistry $registry, EntityManagerInterface $manager )
     {
         parent::__construct($registry, Member::class);
+        $this->manager = $manager;
+    }
+
+    /*private function saveMember($first_name, $last_name, $full_name, $sag_aftra_id, $signing_route, $username, $administration_code, $access_key, $date_created, $good_standing, $election_cycle_id, $active)
+    {
+        $newMember = new Member();
+
+        $newMember
+            ->setFirstName($first_name);
+            ->setLastName($last_name);
+            ->setFullName($full_name);
+            ->setSagAftraId($sag_aftra_id);
+            ->setSigningRoute($signing_route);
+            ->setUsername($username);
+            ->setAdministrationCode($administration_code);
+            ->setAccessKey($access_key);
+            ->setDateCreated($date_created);
+            ->setGoodStanding($good_standing);
+            ->setElectionCycleId($election_cycle_id);
+            ->setActive($active);
+
+        $this->manager->persist($newMember);
+        $this->manager->flush();
     }
 
     // /**

@@ -8,7 +8,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use App\Entity\Member;
+use App\Entity\Staff;
 use App\Repository\MemberRepository;
 use GuzzleHttp\Client;
 
@@ -20,6 +20,7 @@ class StaffController extends AbstractController
      */
      public function staff_authenticate(Request $request) {
 
+        $response = new \stdClass();
         $data = json_decode($request->getContent(), true);
         $username = $data['username'];
         $password = $data['password'];
@@ -38,8 +39,31 @@ class StaffController extends AbstractController
         } catch(\Exception $e){
         return new JsonResponse("Account Failed to Authenticate", 401);
         }
-        $member = $this->staff_find($username);
-        return new JsonResponse($member, 200);
+        $staff = $this->staff_find($username);
+
+        if ($staff) {
+          $em = $this->getDoctrine()->getManager();
+          $query = $em->createQuery("
+            SELECT s FROM App\Entity\Staff s
+            WHERE s.username = '".$username."'
+          ");
+          $results = $query->getArrayResult();
+          if (empty($results)) {
+            $insert = $this->staff_create($staff);
+            $response->status = true;
+            $response->success = "Staff Authneticated Successfully";
+            $response->info = $insert;
+            $response->http_code = 200;
+            return new JsonResponse($response, 200);
+          } else {
+            $access_key = $results[0]["access_key"];
+            $response->status = true;
+            $response->success = "Staff Authneticated Successfully";
+            $response->access_key = $access_key;
+            $response->http_code = 200;
+            return new JsonResponse($response, 200);
+          }
+        }
     }
 
 
@@ -56,6 +80,25 @@ class StaffController extends AbstractController
       } catch (RequestException $exception) {
       return new JsonResponse("Staff Account Could Not Be Found!", 200);
       }
+    }
+
+    function staff_create($staff_info) {
+      $entityManager = $this->getDoctrine()->getManager();
+      $staff = new Staff;
+      $now = time();
+      $hash_key = bin2hex(random_bytes(32));
+
+      $staff->setUsername($staff_info['data']['samaccountname']);
+      $staff->setElection($staff_info['data']['location']);
+      $staff->setAccessKey($hash_key);
+      $staff->setElectionCycleId(1);
+      $staff->setActive(1);
+      $staff->setDateCreated($now);
+      $staff->setDateModified($now);
+      $entityManager->persist($staff);
+      $entityManager->flush();
+
+      return $hash_key;
     }
 
 }

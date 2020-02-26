@@ -134,8 +134,8 @@ class NominationsController extends AbstractController
       $account = new Member;
       $now = time();
       $hash_key = bin2hex(random_bytes(32));
-      $signing_route = strtoupper(bin2hex(random_bytes(8)));
-      $administration_code = strtoupper(bin2hex(random_bytes(8)));
+      $signing_route = strtoupper(bin2hex(random_bytes(4)));
+      $administration_code = strtoupper(bin2hex(random_bytes(4)));
 
       $account->setSagAftraId($member['unionId']);
       $account->setUsername($name);

@@ -15,6 +15,15 @@ use GuzzleHttp\Client;
 class StaffController extends AbstractController
 {
 
+    /** Symfony Commands to make life easlier
+    *
+    */
+
+    /*
+    dump-autoload --classmap-authoritative "Class can not be found in blah"
+
+    */
+
     /**
      * @Route("/api/v1/authenticate/staff", name="staff_authenticate")
      */

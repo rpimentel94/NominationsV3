@@ -49,6 +49,12 @@ class StaffController extends AbstractController
           ");
           $results = $query->getArrayResult();
           if (empty($results)) {
+            if (strpos($staff['dn'], 'Terminated') !== false) {
+              $response->status = false;
+              $response->success = "Your Account is not Authorized to Access this Application";
+              $response->http_code = 401;
+              return new JsonResponse($response, 401);
+            }
             $insert = $this->staff_create($staff);
             $response->status = true;
             $response->success = "Staff Authneticated Successfully";

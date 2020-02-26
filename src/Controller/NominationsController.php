@@ -8,6 +8,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
 use App\Entity\Member;
 use App\Repository\MemberRepository;
 use GuzzleHttp\Client;
@@ -30,6 +31,39 @@ class NominationsController extends AbstractController
       $response->info = $info;
       $response->http_code = 200;
       return new JsonResponse($response, 200);
+    }
+
+    /**
+     * @Route("/api/v1/authenticate/member", name="member_athenticate", methods={"POST"})
+     */
+    public function member_authenticate(Request $request) {
+
+      $data = json_decode($request->getContent(), true);
+      $name = $data['username'];
+      $ldappass = $data['password'];
+
+      $username = "uid=".$name.",ou=people,dc=sag,dc=org";
+
+      $ldap = ldap_connect("buub16-ldap-d.sag.org");
+      ldap_set_option($ldap, LDAP_OPT_PROTOCOL_VERSION, 3);
+      ldap_set_option($ldap, LDAP_OPT_REFERRALS, 0);
+      if ($bind = ldap_bind($ldap, $username, $ldappass)) {
+      @ldap_close($ldap);
+      $em = $this->getDoctrine()->getManager();
+      $query = $em->createQuery("
+        SELECT m FROM App\Entity\Member m
+        WHERE m.username = '".$name."'
+      ");
+      $results = $query->getArrayResult();
+      if (empty($results)) {
+        $member = $this->get_member_information($name);
+        $insert = $this->member_create($member, $name);
+      }
+
+      return new JsonResponse("You Finally Logged In Correctly!", 200);
+      } else {
+      return new JsonResponse("You're Really Bad At This!", 401);
+      }
     }
 
     /**
@@ -63,32 +97,52 @@ class NominationsController extends AbstractController
         return new JsonResponse($response, 200);
     }
 
-    /**
-     * @Route("/members/", name="add_member", methods={"POST"})
-     */
-    public function add(Request $request): JsonResponse
-    {
-        $data = json_decode($request->getContent(), true);
+    return new JsonResponse(['status' => 'Member created!'], Response::HTTP_CREATED);
+    }
 
-        $first_name = $data['first_name'];
-        $last_name = $data['last_name'];
-        $full_name = $data['full_name'];
-        $sag_aftra_id = $data['sag_aftra_id'];
-        $signing_route = "YWCBWCWW3S";
-        $username = $data['username'];
-        $administration_code = "ZBKULPlOTM";
-        $access_key = "FHW9834ZHWDK2274DJWE743JQW4";
-        $date_created = 1123452335;
-        $good_standing = 1;
-        $election_cycle_id = 1;
-        $active = 1;
+    function get_member_information($username) {
 
-        if (empty($first_name) || empty($last_name) || empty($full_name) || empty($sag_aftra_id)) {
-            throw new NotFoundHttpException('Expecting mandatory parameters!');
-        }
+      try {
+      $client = new \GuzzleHttp\Client(['base_uri' => 'https://sag-aftra-dev.apigee.net']);
+      $request = $client->request('GET', '/registrationservice/finduser?uid=' . $username);
 
-        $this->memberRepository->saveMember($first_name, $last_name, $full_name, $sag_aftra_id, $signing_route, $username, $administration_code, $access_key, $date_created, $good_standing, $election_cycle_id, $active);
+      $body = $request->getBody();
+      $data = $body->getContents();
+      $data = json_decode($data, true);
+      $idn = $data['findUserResponse']['return']['idn'];
 
-        return new JsonResponse(['status' => 'Member created!'], Response::HTTP_CREATED);
+      $client = new \GuzzleHttp\Client(['base_uri' => 'https://sag-aftra-dev.apigee.net']);
+      $request = $client->request('GET', '/memberprofileservice/findmemberbyidn?memberIdn=' . $idn);
+
+      $body = $request->getBody();
+      $member = $body->getContents();
+      return json_decode($member, true);
+
+      } catch (RequestException $exception) {
+      return new JsonResponse("Staff Account Could Not Be Found!", 200);
+      }
+    }
+
+    function member_create($member, $name) {
+      $entityManager = $this->getDoctrine()->getManager();
+      $account = new Member;
+      $now = time();
+      $hash_key = bin2hex(random_bytes(32));
+
+      $account->setSagAftraId($member['unionId']);
+      $account->setUsername($name);
+      $account->setFirstName($member['professionalName']['firstName']);
+      $account->setLastName($member['professionalName']['lastName']);
+      $account->setFullName($member['professionalName']['firstName'] . " " . $member['professionalName']['lastName']);
+      $account->setGoodStanding($member['goodStanding'] == true ? 1 : 0);
+      $account->setAccessKey($hash_key);
+      $account->setElectionCycleId(1);
+      $account->setActive(1);
+      $account->setDateCreated($now);
+      $account->setDateModified($now);
+      $entityManager->persist($staff);
+      $entityManager->flush();
+
+      return $hash_key;
     }
 }

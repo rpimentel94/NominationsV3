@@ -41,6 +41,7 @@ class NominationsController extends AbstractController
       $data = json_decode($request->getContent(), true);
       $name = $data['username'];
       $ldappass = $data['password'];
+      $response = new \stdClass();
 
       $username = "uid=".$name.",ou=people,dc=sag,dc=org";
 
@@ -55,12 +56,18 @@ class NominationsController extends AbstractController
         WHERE m.username = '".$name."'
       ");
       $results = $query->getArrayResult();
-      if (empty($results)) {
-        $member = $this->get_member_information($name);
-        $insert = $this->member_create($member, $name);
-      }
-
-      return new JsonResponse("You Finally Logged In Correctly!", 200);
+        if (empty($results)) {
+          $member = $this->get_member_information($name);
+          $insert = $this->member_create($member, $name);
+          $access_key = $insert;
+        } else {
+          $access_key = $results[0]["access_key"];
+        }
+      $response->status = true;
+      $response->success = "Member Authenticated Successfully";
+      $response->access_key = $access_key;
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
       } else {
       return new JsonResponse("You're Really Bad At This!", 401);
       }
@@ -97,9 +104,6 @@ class NominationsController extends AbstractController
         return new JsonResponse($response, 200);
     }
 
-    return new JsonResponse(['status' => 'Member created!'], Response::HTTP_CREATED);
-    }
-
     function get_member_information($username) {
 
       try {
@@ -116,7 +120,9 @@ class NominationsController extends AbstractController
 
       $body = $request->getBody();
       $member = $body->getContents();
-      return json_decode($member, true);
+      $member = json_decode($member, true);
+      $member = $member['findMemberByIdnResponse']['return'];
+      return $member;
 
       } catch (RequestException $exception) {
       return new JsonResponse("Staff Account Could Not Be Found!", 200);
@@ -128,6 +134,8 @@ class NominationsController extends AbstractController
       $account = new Member;
       $now = time();
       $hash_key = bin2hex(random_bytes(32));
+      $signing_route = strtoupper(bin2hex(random_bytes(8)));
+      $administration_code = strtoupper(bin2hex(random_bytes(8)));
 
       $account->setSagAftraId($member['unionId']);
       $account->setUsername($name);
@@ -136,11 +144,12 @@ class NominationsController extends AbstractController
       $account->setFullName($member['professionalName']['firstName'] . " " . $member['professionalName']['lastName']);
       $account->setGoodStanding($member['goodStanding'] == true ? 1 : 0);
       $account->setAccessKey($hash_key);
+      $account->setSigningRoute($signing_route);
+      $account->setAdministrationCode($administration_code);
       $account->setElectionCycleId(1);
       $account->setActive(1);
       $account->setDateCreated($now);
-      $account->setDateModified($now);
-      $entityManager->persist($staff);
+      $entityManager->persist($account);
       $entityManager->flush();
 
       return $hash_key;

@@ -10,6 +10,7 @@ use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
 use App\Entity\Member;
+use App\Entity\MemberLocal;
 use App\Repository\MemberRepository;
 use GuzzleHttp\Client;
 
@@ -27,7 +28,7 @@ class NominationsController extends AbstractController
 
       $response = new \stdClass();
       $response->status = true;
-      $response->success = "Welcome to the SAG-AFTRA Nominations API";
+      $response->message = "Welcome to the SAG-AFTRA Nominations API";
       $response->info = $info;
       $response->http_code = 200;
       return new JsonResponse($response, 200);
@@ -42,13 +43,14 @@ class NominationsController extends AbstractController
       $name = $data['username'];
       $ldappass = $data['password'];
       $response = new \stdClass();
+      $payload = new \stdClass();
 
       $username = "uid=".$name.",ou=people,dc=sag,dc=org";
-
       $ldap = ldap_connect("buub16-ldap-d.sag.org");
       ldap_set_option($ldap, LDAP_OPT_PROTOCOL_VERSION, 3);
       ldap_set_option($ldap, LDAP_OPT_REFERRALS, 0);
-      if ($bind = ldap_bind($ldap, $username, $ldappass)) {
+      try {
+      $bind = ldap_bind($ldap, $username, $ldappass);
       @ldap_close($ldap);
       $em = $this->getDoctrine()->getManager();
       $query = $em->createQuery("
@@ -59,49 +61,23 @@ class NominationsController extends AbstractController
         if (empty($results)) {
           $member = $this->get_member_information($name);
           $insert = $this->member_create($member, $name);
-          $access_key = $insert;
+          $payload->access_key = $insert;
         } else {
-          $access_key = $results[0]["access_key"];
+          $update = $this->update_member_information($name, $results[0]);
+          $update = $this->update_member_local($name, $results[0]);
+          $payload->access_key = $results[0]["access_key"];
         }
       $response->status = true;
-      $response->success = "Member Authenticated Successfully";
-      $response->access_key = $access_key;
+      $response->message = "Member Authenticated Successfully";
+      $response->payload = $payload;
       $response->http_code = 200;
       return new JsonResponse($response, 200);
-      } else {
-      return new JsonResponse("You're Really Bad At This!", 401);
+      } catch(\Exception $e) {
+      $response->status = false;
+      $response->message = "Member Failed to Authenticate";
+      $response->http_code = 401;
+      return new JsonResponse($response, 401);
       }
-    }
-
-    /**
-     * @Route("/api/v1/get-member", name="find_member", methods={"POST"})
-     */
-    public function find(Request $request) {
-
-      $data = json_decode($request->getContent(), true);
-      $id = $data['id'];
-      $access_key = $data['access_key'];
-
-      $em = $this->getDoctrine()->getManager();
-      $query = $em->createQuery("
-        SELECT m FROM App\Entity\Member m
-        WHERE m.id = $id
-          AND m.access_key = '".$access_key."'
-      ");
-      $results = $query->getArrayResult();
-
-      $response = new \stdClass();
-
-      if (empty($results)) {
-        $response->message = "This is a locked route";
-        $response->code = 401;
-        return new JsonResponse($response, 401);
-      }
-
-        $reponse->message = "Member Information Found";
-        $response->payload = $results;
-        $response->code = 200;
-        return new JsonResponse($response, 200);
     }
 
     function get_member_information($username) {
@@ -146,12 +122,88 @@ class NominationsController extends AbstractController
       $account->setAccessKey($hash_key);
       $account->setSigningRoute($signing_route);
       $account->setAdministrationCode($administration_code);
-      $account->setElectionCycleId(1);
+      $account->setElectionCyclesId(1);
       $account->setActive(1);
       $account->setDateCreated($now);
       $entityManager->persist($account);
       $entityManager->flush();
 
+      $user_id = $account->getId();
+
+      $local = new MemberLocal;
+      $local->setUsersId($user_id);
+      $local->setElectionCyclesId(1);
+      $local->setDescription($member['branch']['description']);
+      $local->setCode($member['branch']['code']);
+      $local->setActive(1);
+      $local->setOverride(0);
+      $local->setDateCreated($now);
+      $entityManager->persist($local);
+      $entityManager->flush();
+
       return $hash_key;
     }
+
+    function update_member_information($name, $db_record){
+      $member = $this->get_member_information($name);
+      $oracle_name = $member['professionalName']['firstName'] . " " . $member['professionalName']['lastName'];
+      $oracle_standing = ($member['goodStanding'] == true ? 1 : 0);
+
+      if ($oracle_name != $db_record['full_name'] || $oracle_standing != $db_record['good_standing']) {
+        $em = $this->getDoctrine()->getManager();
+        $update = $em->getRepository(Member::class)->find($db_record['id']);
+        $update->setFullName($oracle_name);
+        $update->setFirstName($member['professionalName']['firstName']);
+        $update->setLastName($member['professionalName']['lastName']);
+        $em->flush();
+      }
+    }
+
+    function update_member_local($name, $db_record){
+      $member = $this->get_member_information($name);
+      $oracle_local = $member['branch']['code'];
+      $id = $db_record['id'];
+
+      $em = $this->getDoctrine()->getManager();
+      $query = $em->createQuery("SELECT e FROM App\Entity\MemberLocal e WHERE e.active = 1 AND e.override != 1 AND e.code = '".$oracle_local."' AND e.users_id = ".$id." ");
+      $locals = $query->getArrayResult();
+
+      if (empty($locals)) {
+        $local = new MemberLocal;
+        $local->setUsersId($id);
+        $local->setElectionCyclesId(1);
+        $local->setDescription($member['branch']['description']);
+        $local->setCode($member['branch']['code']);
+        $local->setActive(1);
+        $local->setOverride(0);
+        $local->setDateCreated($now);
+        $em->persist($local);
+        $em->flush();
+      }
+    }
+
+    /**
+     * @Route("/api/v1/petitions/member/all", name="member_local_national", methods={"POST"})
+     */
+    public function member_find_national_local_boards(Request $request) {
+      $data = json_decode($request->getContent(), true);
+      $access_key = $data['access_key'];
+      $response = new \stdClass();
+
+      $em = $this->getDoctrine()->getManager();
+      $query = $em->createQuery("SELECT m FROM App\Entity\Member m WHERE m.active = 1 AND m.access_key = '".$access_key."'");
+      $results = $query->getArrayResult();
+
+      if (empty($results) || !$access_key) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      return new JsonResponse("You've successfully used the access key to authenticate", 200);
+
+
+    }
+
 }

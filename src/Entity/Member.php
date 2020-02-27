@@ -59,7 +59,7 @@ class Member
     /**
      * @ORM\Column(type="integer")
      */
-    private $election_cycle_id;
+    private $election_cycles_id;
 
     /**
      * @ORM\Column(type="string", length=255, nullable=true)
@@ -177,14 +177,14 @@ class Member
         return $this;
     }
 
-    public function getElectionCycleId(): ?int
+    public function getElectionCyclesId(): ?int
     {
-        return $this->election_cycle_id;
+        return $this->election_cycles_id;
     }
 
-    public function setElectionCycleId(int $election_cycle_id): self
+    public function setElectionCyclesId(int $election_cycles_id): self
     {
-        $this->election_cycle_id = $election_cycle_id;
+        $this->election_cycles_id = $election_cycles_id;
 
         return $this;
     }
@@ -237,7 +237,7 @@ class Member
         'good_standing' => $this->getGoodStanding(),
         'signing_route' => $this->getSigningRoute(),
         'administration_code' => $this->getAdministrationCode(),
-        'election_cycle_id' => $this->getElectionCycleId(),
+        'election_cycles_id' => $this->getElectionCyclesId(),
         'access_key' => $this->getAccessKey(),
         'active' => $this->getActive(),
         'date_created' => $this->getDateCreated(),

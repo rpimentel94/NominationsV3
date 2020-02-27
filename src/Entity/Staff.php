@@ -29,7 +29,7 @@ class Staff
     /**
      * @ORM\Column(type="integer")
      */
-    private $election_cycle_id;
+    private $election_cycles_id;
 
     /**
      * @ORM\Column(type="integer", nullable=true)
@@ -80,14 +80,14 @@ class Staff
         return $this;
     }
 
-    public function getElectionCycleId(): ?int
+    public function getElectionCyclesId(): ?int
     {
-        return $this->election_cycle_id;
+        return $this->election_cycles_id;
     }
 
-    public function setElectionCycleId(int $election_cycle_id): self
+    public function setElectionCyclesId(int $election_cycles_id): self
     {
-        $this->election_cycle_id = $election_cycle_id;
+        $this->election_cycles_id = $election_cycles_id;
 
         return $this;
     }

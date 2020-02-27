@@ -146,6 +146,7 @@ class NominationsController extends AbstractController
 
     function update_member_information($name, $db_record){
       $member = $this->get_member_information($name);
+      $now = time();
       $oracle_name = $member['professionalName']['firstName'] . " " . $member['professionalName']['lastName'];
       $oracle_standing = ($member['goodStanding'] == true ? 1 : 0);
 
@@ -155,6 +156,8 @@ class NominationsController extends AbstractController
         $update->setFullName($oracle_name);
         $update->setFirstName($member['professionalName']['firstName']);
         $update->setLastName($member['professionalName']['lastName']);
+        $update->setGoodStanding($member['goodStanding']);
+        $update->setDateModified($now);
         $em->flush();
       }
     }
@@ -163,9 +166,10 @@ class NominationsController extends AbstractController
       $member = $this->get_member_information($name);
       $oracle_local = $member['branch']['code'];
       $id = $db_record['id'];
-
+      $now = time();
+      $match = false;
       $em = $this->getDoctrine()->getManager();
-      $query = $em->createQuery("SELECT e FROM App\Entity\MemberLocal e WHERE e.active = 1 AND e.override != 1 AND e.code = '".$oracle_local."' AND e.users_id = ".$id." ");
+      $query = $em->createQuery("SELECT e FROM App\Entity\MemberLocal e WHERE e.active = 1 AND e.override != 1 AND e.users_id = ".$id." ");
       $locals = $query->getArrayResult();
 
       if (empty($locals)) {
@@ -179,7 +183,45 @@ class NominationsController extends AbstractController
         $local->setDateCreated($now);
         $em->persist($local);
         $em->flush();
-      }
+        return true;
+        }
+
+        foreach ($locals as $local) {
+          if ($local['code'] == $member['branch']['code']) {
+            $match = true;
+          } else {
+            $previous = $local['code'];
+          }
+        }
+
+        if (!$match) {
+          $override = 0;
+          $qb = $em->createQueryBuilder();
+          $q = $qb->update('App\Entity\MemberLocal', 'u')
+                  ->set('u.active', '?1')
+                  ->where('u.users_id = ?2')
+                  ->andWhere('u.override = ?3')
+                  ->andWhere('u.code = ?4')
+                  ->setParameter(1, 0)
+                  ->setParameter(2, ''.$id.'')
+                  ->setParameter(3, ''.$override.'')
+                  ->setParameter(4, ''.$previous.'')
+                  ->getQuery();
+          $p = $q->execute();
+
+          $em = $this->getDoctrine()->getManager();
+          $new_local = new MemberLocal;
+          $new_local->setUsersId($id);
+          $new_local->setElectionCyclesId(1);
+          $new_local->setDescription($member['branch']['description']);
+          $new_local->setCode($member['branch']['code']);
+          $new_local->setActive(1);
+          $new_local->setOverride(0);
+          $new_local->setDateCreated($now);
+          $em->persist($new_local);
+          $em->flush();
+
+        }
     }
 
     /**
@@ -202,7 +244,6 @@ class NominationsController extends AbstractController
       }
 
       return new JsonResponse("You've successfully used the access key to authenticate", 200);
-
 
     }
 

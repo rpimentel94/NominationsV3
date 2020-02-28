@@ -66,7 +66,9 @@ class MemberRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('m')
             ->andWhere('m.access_key = :val')
+            ->andWhere('m.active = :num')
             ->setParameter('val', $access_key)
+            ->setParameter('num', 1)
             ->getQuery()
             ->getOneOrNullResult()
         ;
@@ -76,7 +78,9 @@ class MemberRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('m')
             ->andWhere('m.id = :val')
+            ->andWhere('m.active = :num')
             ->setParameter('val', $id)
+            ->setParameter('num', 1)
             ->getQuery()
             ->getOneOrNullResult()
         ;

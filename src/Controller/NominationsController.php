@@ -11,6 +11,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
 use App\Entity\Member;
 use App\Entity\MemberLocal;
+use App\Entity\MemberInformation;
 use App\Repository\MemberRepository;
 use GuzzleHttp\Client;
 
@@ -295,9 +296,35 @@ class NominationsController extends AbstractController
         $messages->city = "City is required";
       }
 
-      if(!$this->validCity($data['city'])) {
+      if ( !$this->validCityState($data['city'])) {
         $errors = true;
         $messages->city = "City is not valid";
+      }
+
+      if ( !$data['state']) {
+        $errors = true;
+        $messages->state = "State is required";
+      }
+
+      if ( !$this->validCityState($data['state'])) {
+        $errors = true;
+        $messages->state = "State is not valid";
+      }
+
+      $media_contact = false;
+      if ( $data['media_contact'] == 1 || $data['media_contact'] == true || $data['media_contact'] == 'true' ) {
+        $media_contact = true;
+      }
+
+      if ($media_contact) {
+        if ( !$data['media_phone'] || strlen($data['media_phone']) > 30 ) {
+          $errors = true;
+          $messages->phone = "Media Telephone is required & Can not be greater than a length of 30 characters.";
+        }
+        if ( !filter_var($data['media_email'], FILTER_VALIDATE_EMAIL) || !$data['media_email'] ) {
+          $errors = true;
+          $messages->phone = "Media Email is required & needs to be valid.";
+        }
       }
 
       if ($errors) {
@@ -308,27 +335,101 @@ class NominationsController extends AbstractController
         return new JsonResponse($response, 200);
       }
 
-      var_dump($member); die();
+      try {
+      $now = time();
+      $em = $this->getDoctrine()->getManager();
+      $member_contact_info = new MemberInformation;
+      $member_contact_info->setUsersId($data['users_id']);
+      $member_contact_info->setBallotDisplayName($data['ballot_display_name']);
+      $member_contact_info->setAddress1($data['address_1']);
+      $member_contact_info->setAddress2($data['address_2']);
+      $member_contact_info->setCity($data['city']);
+      $member_contact_info->setState($data['state']);
+      $member_contact_info->setZipCode($data['zip_code']);
+      $member_contact_info->setCountry($data['country']);
+      $member_contact_info->setEmail($data['email']);
+      $member_contact_info->setPhone($data['phone']);
+      $member_contact_info->setMediaContact($media_contact);
+      $member_contact_info->setMediaEmail($data['media_email']);
+      $member_contact_info->setMediaPhone($data['media_phone']);
+      $member_contact_info->setElectionCyclesId(1);
+      $member_contact_info->setActive(1);
+      $member_contact_info->setDateCreated($now);
+      $member_contact_info->setDateModified($now);
+      $em->persist($member_contact_info);
+      $em->flush();
+
+      $response->status = true;
+      $response->message = "Contact Information Saved Successfully!";
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
+
+      } catch (RequestException $exception) {
+        $response->status = false;
+        $response->message = "Contact Information Failed to Save!!";
+        $response->http_code = 200;
+        return new JsonResponse($response, 200);
+      }
+
     }
 
     /**
      * @Route("/api/v1/petitions/member/contact-information/edit", name="member_edit_contact_information", methods={"POST"})
      */
     public function member_edit_contact_information(Request $request) {
+      $response = new \stdClass();
+      $data = json_decode($request->getContent(), true);
+      $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
 
+      if (!$access_key) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $em = $this->getDoctrine()->getManager();
+      $member = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
     }
 
     /**
      * @Route("/api/v1/petitions/member/contact-information", name="member_contact_information", methods={"GET"})
      */
     public function member_contact_information(Request $request) {
+      $response = new \stdClass();
+      $data = json_decode($request->getContent(), true);
+      $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
+
+      if (!$access_key) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $em = $this->getDoctrine()->getManager();
+      $member = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
+
+      $result = $em->createQueryBuilder();
+      $member_contact_info = $result->select('m')
+            ->from('App\Entity\MemberInformation', 'm')
+            ->where('m.users_id = :id')
+            ->setParameter('id', $member->getId())
+            ->getQuery()
+            ->getArrayResult();
+
+      $response->status = true;
+      $response->message = "Contact Information Found!";
+      $response->payload = $member_contact_info;
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
 
     }
 
-    function validCity($city) {
+    function validCityState($search) {
       try {
       $client = new \GuzzleHttp\Client(['base_uri' => 'https://www.weather-forecast.com']);
-      $request = $client->request('GET', '/locations/ac_location_name?query=' . $city);
+      $request = $client->request('GET', '/locations/ac_location_name?query=' . $search);
       $body = $request->getBody();
       $response = $body->getContents();
 
@@ -341,6 +442,10 @@ class NominationsController extends AbstractController
       } catch (RequestException $exception) {
       return new JsonResponse("City could not be validated at this time.", 200);
       }
+    }
+
+    public function toArray() {
+        return get_object_vars($this);
     }
 
 }

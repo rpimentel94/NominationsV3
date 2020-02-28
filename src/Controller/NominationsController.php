@@ -152,7 +152,7 @@ class NominationsController extends AbstractController
 
       if ($oracle_name != $db_record['full_name'] || $oracle_standing != $db_record['good_standing']) {
         $em = $this->getDoctrine()->getManager();
-        $update = $em->getRepository(Member::class)->find($db_record['id']);
+        $update = $em->getRepository(Member::class)->findOneByUserId($db_record['id']);
         $update->setFullName($oracle_name);
         $update->setFirstName($member['professionalName']['firstName']);
         $update->setLastName($member['professionalName']['lastName']);
@@ -245,6 +245,102 @@ class NominationsController extends AbstractController
 
       return new JsonResponse("You've successfully used the access key to authenticate", 200);
 
+    }
+
+    /**
+     * @Route("/api/v1/petitions/member/contact-information/save", name="member_save_contact_information", methods={"POST"})
+     */
+    public function member_save_contact_information(Request $request) {
+      $response = new \stdClass();
+      $data = json_decode($request->getContent(), true);
+      $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
+
+      if (!$access_key) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $em = $this->getDoctrine()->getManager();
+      $member = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
+
+      if (!$member) {
+        $response->status = false;
+        $response->message = "Member Record Could Not Be Found.";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $errors = false;
+      $messages = new \stdClass();
+
+      if ( !$data['phone'] || strlen($data['phone']) > 30 ) {
+        $errors = true;
+        $messages->phone = "Telephone is required & Can not be greater than a length of 30 characters.";
+      }
+
+      if ( !filter_var($data['email'], FILTER_VALIDATE_EMAIL) || !$data['email'] ) {
+        $errors = true;
+        $messages->email = "Email is required & needs to be valid.";
+      }
+
+      if ( !$data['address_1']) {
+        $errors = true;
+        $messages->address = "Address Line 1 is required";
+      }
+
+      if ( !$data['city']) {
+        $errors = true;
+        $messages->city = "City is required";
+      }
+
+      if(!$this->validCity($data['city'])) {
+        $errors = true;
+        $messages->city = "City is not valid";
+      }
+
+      if ($errors) {
+        $response->status = false;
+        $response->message = "Contact Information Errors Found";
+        $response->payload = $messages;
+        $response->http_code = 200;
+        return new JsonResponse($response, 200);
+      }
+
+      var_dump($member); die();
+    }
+
+    /**
+     * @Route("/api/v1/petitions/member/contact-information/edit", name="member_edit_contact_information", methods={"POST"})
+     */
+    public function member_edit_contact_information(Request $request) {
+
+    }
+
+    /**
+     * @Route("/api/v1/petitions/member/contact-information", name="member_contact_information", methods={"GET"})
+     */
+    public function member_contact_information(Request $request) {
+
+    }
+
+    function validCity($city) {
+      try {
+      $client = new \GuzzleHttp\Client(['base_uri' => 'https://www.weather-forecast.com']);
+      $request = $client->request('GET', '/locations/ac_location_name?query=' . $city);
+      $body = $request->getBody();
+      $response = $body->getContents();
+
+      if (strlen($response) > 6) {
+        return true;
+      } else {
+        return false;
+      }
+
+      } catch (RequestException $exception) {
+      return new JsonResponse("City could not be validated at this time.", 200);
+      }
     }
 
 }

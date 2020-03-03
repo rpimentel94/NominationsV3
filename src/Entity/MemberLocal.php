@@ -47,7 +47,7 @@ class MemberLocal
     private $override;
 
     /**
-     * @ORM\Column(type="integer", nullable=true)
+     * @ORM\Column(type="string", length=255, nullable=true)
      */
     private $date_created;
 
@@ -128,12 +128,12 @@ class MemberLocal
         return $this;
     }
 
-    public function getDateCreated(): ?int
+    public function getDateCreated(): ?string
     {
         return $this->date_created;
     }
 
-    public function setDateCreated(?int $date_created): self
+    public function setDateCreated(?string $date_created): self
     {
         $this->date_created = $date_created;
 

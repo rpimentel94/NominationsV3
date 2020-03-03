@@ -92,12 +92,12 @@ class MemberInformation
     private $active;
 
     /**
-     * @ORM\Column(type="integer")
+     * @ORM\Column(type="string", length=100)
      */
     private $date_created;
 
     /**
-     * @ORM\Column(type="integer")
+     * @ORM\Column(type="string", length=100)
      */
     private $date_modified;
 
@@ -286,24 +286,24 @@ class MemberInformation
         return $this;
     }
 
-    public function getDateCreated(): ?int
+    public function getDateCreated(): ?string
     {
         return $this->date_created;
     }
 
-    public function setDateCreated(int $date_created): self
+    public function setDateCreated(string $date_created): self
     {
         $this->date_created = $date_created;
 
         return $this;
     }
 
-    public function getDateModified(): ?int
+    public function getDateModified(): ?string
     {
         return $this->date_modified;
     }
 
-    public function setDateModified(int $date_modified): self
+    public function setDateModified(string $date_modified): self
     {
         $this->date_modified = $date_modified;
 

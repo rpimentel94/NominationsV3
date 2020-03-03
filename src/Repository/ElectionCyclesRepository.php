@@ -36,15 +36,16 @@ class ElectionCyclesRepository extends ServiceEntityRepository
     }
     */
 
-    /*
-    public function findOneBySomeField($value): ?ElectionCycles
+
+    public function findOneByActive(): ?ElectionCycles
     {
+        $value = 1;
         return $this->createQueryBuilder('e')
-            ->andWhere('e.exampleField = :val')
+            ->andWhere('e.active = :val')
             ->setParameter('val', $value)
             ->getQuery()
             ->getOneOrNullResult()
         ;
     }
-    */
+
 }

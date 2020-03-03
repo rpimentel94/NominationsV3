@@ -8,11 +8,11 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\Security\Http\Authentication\AuthenticationUtils;
+use Symfony\Component\HttpClient\HttpClient;
 use App\Entity\Member;
 use App\Entity\MemberLocal;
 use App\Entity\MemberInformation;
-use App\Repository\MemberRepository;
+use App\Entity\ElectionCycles;
 use GuzzleHttp\Client;
 
 class NominationsController extends AbstractController
@@ -33,6 +33,10 @@ class NominationsController extends AbstractController
       $response->info = $info;
       $response->http_code = 200;
       return new JsonResponse($response, 200);
+    }
+
+    public function current_cycle() {
+    return $this->getDoctrine()->getManager()->getRepository(ElectionCycles::class)->findOneByActive()->getId();
     }
 
     /**
@@ -84,22 +88,26 @@ class NominationsController extends AbstractController
     function get_member_information($username) {
 
       try {
-      $client = new \GuzzleHttp\Client(['base_uri' => 'https://sag-aftra-dev.apigee.net']);
-      $request = $client->request('GET', '/registrationservice/finduser?uid=' . $username);
+      $curl = curl_init();
+      curl_setopt_array($curl, array(
+        CURLOPT_URL => "https://sag-aftra-dev.apigee.net/dev-registrationservice/v1/user?uid=" . $username,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => "GET",
+        CURLOPT_HTTPHEADER => array("x-apikey:  hSa8SYHhxc0c5QAhXOmaWoxwJRPMVukq"),
+      ));
+      $response = curl_exec($curl);
+      $response = json_decode($response, true);
+      $idn = $response['idn'];
 
-      $body = $request->getBody();
-      $data = $body->getContents();
-      $data = json_decode($data, true);
-      $idn = $data['findUserResponse']['return']['idn'];
-
-      $client = new \GuzzleHttp\Client(['base_uri' => 'https://sag-aftra-dev.apigee.net']);
-      $request = $client->request('GET', '/memberprofileservice/findmemberbyidn?memberIdn=' . $idn);
-
-      $body = $request->getBody();
-      $member = $body->getContents();
-      $member = json_decode($member, true);
-      $member = $member['findMemberByIdnResponse']['return'];
-      return $member;
+      curl_setopt_array($curl, array(
+        CURLOPT_URL => "https://sag-aftra-dev.apigee.net/memberprofileservice/findmemberbyidn?memberIdn=". $idn,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CUSTOMREQUEST => "GET",
+        CURLOPT_HTTPHEADER => array("x-apikey:  hSa8SYHhxc0c5QAhXOmaWoxwJRPMVukq"),
+      ));
+      $response = curl_exec($curl);
+      $member = json_decode($response, true);
+      return $member['findMemberByIdnResponse']['return'];
 
       } catch (RequestException $exception) {
       return new JsonResponse("Staff Account Could Not Be Found!", 200);
@@ -107,9 +115,11 @@ class NominationsController extends AbstractController
     }
 
     function member_create($member, $name) {
+      $cycle = $this->current_cycle();
       $entityManager = $this->getDoctrine()->getManager();
       $account = new Member;
-      $now = time();
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
       $hash_key = bin2hex(random_bytes(32));
       $signing_route = strtoupper(bin2hex(random_bytes(4)));
       $administration_code = strtoupper(bin2hex(random_bytes(4)));
@@ -123,7 +133,7 @@ class NominationsController extends AbstractController
       $account->setAccessKey($hash_key);
       $account->setSigningRoute($signing_route);
       $account->setAdministrationCode($administration_code);
-      $account->setElectionCyclesId(1);
+      $account->setElectionCyclesId($cycle);
       $account->setActive(1);
       $account->setDateCreated($now);
       $entityManager->persist($account);
@@ -133,7 +143,7 @@ class NominationsController extends AbstractController
 
       $local = new MemberLocal;
       $local->setUsersId($user_id);
-      $local->setElectionCyclesId(1);
+      $local->setElectionCyclesId($this->current_cycle());
       $local->setDescription($member['branch']['description']);
       $local->setCode($member['branch']['code']);
       $local->setActive(1);
@@ -147,7 +157,8 @@ class NominationsController extends AbstractController
 
     function update_member_information($name, $db_record){
       $member = $this->get_member_information($name);
-      $now = time();
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
       $oracle_name = $member['professionalName']['firstName'] . " " . $member['professionalName']['lastName'];
       $oracle_standing = ($member['goodStanding'] == true ? 1 : 0);
 
@@ -165,9 +176,11 @@ class NominationsController extends AbstractController
 
     function update_member_local($name, $db_record){
       $member = $this->get_member_information($name);
+      $cycle = $this->current_cycle();
       $oracle_local = $member['branch']['code'];
       $id = $db_record['id'];
-      $now = time();
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
       $match = false;
       $em = $this->getDoctrine()->getManager();
       $query = $em->createQuery("SELECT e FROM App\Entity\MemberLocal e WHERE e.active = 1 AND e.override != 1 AND e.users_id = ".$id." ");
@@ -176,7 +189,7 @@ class NominationsController extends AbstractController
       if (empty($locals)) {
         $local = new MemberLocal;
         $local->setUsersId($id);
-        $local->setElectionCyclesId(1);
+        $local->setElectionCyclesId($cycle);
         $local->setDescription($member['branch']['description']);
         $local->setCode($member['branch']['code']);
         $local->setActive(1);
@@ -212,8 +225,9 @@ class NominationsController extends AbstractController
 
           $em = $this->getDoctrine()->getManager();
           $new_local = new MemberLocal;
+          $cycle = $this->current_cycle();
           $new_local->setUsersId($id);
-          $new_local->setElectionCyclesId(1);
+          $new_local->setElectionCyclesId($cycle);
           $new_local->setDescription($member['branch']['description']);
           $new_local->setCode($member['branch']['code']);
           $new_local->setActive(1);
@@ -336,9 +350,11 @@ class NominationsController extends AbstractController
       }
 
       try {
-      $now = time();
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
       $em = $this->getDoctrine()->getManager();
       $member_contact_info = new MemberInformation;
+      $cycle = $this->current_cycle();
       $member_contact_info->setUsersId($data['users_id']);
       $member_contact_info->setBallotDisplayName($data['ballot_display_name']);
       $member_contact_info->setAddress1($data['address_1']);
@@ -352,7 +368,7 @@ class NominationsController extends AbstractController
       $member_contact_info->setMediaContact($media_contact);
       $member_contact_info->setMediaEmail($data['media_email']);
       $member_contact_info->setMediaPhone($data['media_phone']);
-      $member_contact_info->setElectionCyclesId(1);
+      $member_contact_info->setElectionCyclesId($cycle);
       $member_contact_info->setActive(1);
       $member_contact_info->setDateCreated($now);
       $member_contact_info->setDateModified($now);
@@ -433,11 +449,7 @@ class NominationsController extends AbstractController
       $body = $request->getBody();
       $response = $body->getContents();
 
-      if (strlen($response) > 6) {
-        return true;
-      } else {
-        return false;
-      }
+      if (strlen($response) > 6) { return true; } else { return false; }
 
       } catch (RequestException $exception) {
       return new JsonResponse("City could not be validated at this time.", 200);

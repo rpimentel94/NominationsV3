@@ -72,7 +72,7 @@ class Member
     private $active;
 
     /**
-     * @ORM\Column(type="integer")
+     * @ORM\Column(type="string", length=255)
      */
     private $date_created;
 
@@ -213,12 +213,12 @@ class Member
         return $this;
     }
 
-    public function getDateCreated(): ?int
+    public function getDateCreated(): ?string
     {
         return $this->date_created;
     }
 
-    public function setDateCreated(int $date_created): self
+    public function setDateCreated(string $date_created): self
     {
         $this->date_created = $date_created;
 

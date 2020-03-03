@@ -17,47 +17,18 @@ class ElectionCycles
     private $id;
 
     /**
-     * @ORM\Column(type="integer")
-     */
-    private $date_start;
-
-    /**
-     * @ORM\Column(type="integer")
-     */
-    private $date_end;
-
-    /**
      * @ORM\Column(type="boolean")
      */
     private $active;
 
+    /**
+     * @ORM\Column(type="integer")
+     */
+    private $election_year;
+
     public function getId(): ?int
     {
         return $this->id;
-    }
-
-    public function getDateStart(): ?int
-    {
-        return $this->date_start;
-    }
-
-    public function setDateStart(int $date_start): self
-    {
-        $this->date_start = $date_start;
-
-        return $this;
-    }
-
-    public function getDateEnd(): ?int
-    {
-        return $this->date_end;
-    }
-
-    public function setDateEnd(int $date_end): self
-    {
-        $this->date_end = $date_end;
-
-        return $this;
     }
 
     public function getActive(): ?bool
@@ -68,6 +39,18 @@ class ElectionCycles
     public function setActive(bool $active): self
     {
         $this->active = $active;
+
+        return $this;
+    }
+
+    public function getElectionYear(): ?int
+    {
+        return $this->election_year;
+    }
+
+    public function setElectionYear(?int $username): self
+    {
+        $this->election_year = $election_year;
 
         return $this;
     }

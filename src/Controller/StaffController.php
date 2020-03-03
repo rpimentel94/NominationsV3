@@ -9,7 +9,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use App\Entity\Staff;
-use App\Repository\MemberRepository;
+use App\Entity\ElectionCycles;
 use GuzzleHttp\Client;
 
 class StaffController extends AbstractController
@@ -23,6 +23,10 @@ class StaffController extends AbstractController
     composer dump-autoload --classmap-authoritative "Class can not be found in blah"
 
     */
+
+    public function current_cycle() {
+    return $this->getDoctrine()->getManager()->getRepository(ElectionCycles::class)->findOneByActive()->getId();
+    }
 
     /**
      * @Route("/api/v1/authenticate/staff", name="staff_authenticate")
@@ -59,8 +63,9 @@ class StaffController extends AbstractController
             WHERE s.username = '".$username."'
           ");
           $results = $query->getArrayResult();
+
           if (empty($results)) {
-            if (strpos($staff['dn'], 'Terminated') !== false) {
+            if (strpos($staff['data']['dn'], 'Terminated') !== false) {
             $response->status = false;
             $response->message = "Your Account is not Authorized to Access this Application";
             $response->http_code = 401;
@@ -102,13 +107,15 @@ class StaffController extends AbstractController
     function staff_create($staff_info) {
       $entityManager = $this->getDoctrine()->getManager();
       $staff = new Staff;
-      $now = time();
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
       $hash_key = bin2hex(random_bytes(32));
+      $cycle = $this->current_cycle();
 
       $staff->setUsername($staff_info['data']['samaccountname']);
       $staff->setElection($staff_info['data']['location']);
       $staff->setAccessKey($hash_key);
-      $staff->setElectionCyclesId(1);
+      $staff->setElectionCyclesId($cycle);
       $staff->setActive(1);
       $staff->setDateCreated($now);
       $staff->setDateModified($now);

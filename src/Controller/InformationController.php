@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use App\Entity\Member;
+use App\Entity\ElectionCycles;
 use GuzzleHttp\Client;
 
 class InformationController extends AbstractController
@@ -19,24 +20,23 @@ class InformationController extends AbstractController
    */
   public function getCycles() {
 
-    $info = new \stdClass();
+    $response = new \stdClass();
     $payload = new \stdClass();
-    $now = time();
 
     $em = $this->getDoctrine()->getManager();
-    $query = $em->createQuery("SELECT e FROM App\Entity\ElectionCycles e WHERE e.active = 1 AND e.date_start < " . $now . " AND e.date_end > " . $now);
-    $payload->cycles = $query->getArrayResult();
+    $cycles = $em->getRepository(ElectionCycles::class)->findOneByActive();
 
-    if (empty($payload->cycles)) {
+    if (empty($cycles)) {
       $response->status = false;
-      $response->message = "No Election Cycles Found";
+      $response->message = "Election Cycle is Not Open";
       $response->http_code = 200;
       return new JsonResponse($response, 200);
     } else {
-      $response = new \stdClass();
+      $payload->election_year = $cycles->getElectionYear();
+      $payload->active = ( $cycles->getActive() == true ? 1 : 0 );
       $response->status = true;
-      $response->message = "Election Cycle Found";
-      $response->payload = $payload->cycles[0];
+      $response->message = "Election Cycle is Open";
+      $response->payload = $payload;
       $response->http_code = 200;
       return new JsonResponse($response, 200);
     }

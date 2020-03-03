@@ -13,6 +13,7 @@ use App\Entity\Member;
 use App\Entity\MemberLocal;
 use App\Entity\MemberInformation;
 use App\Entity\ElectionCycles;
+use App\Entity\ElectionBoards;
 use GuzzleHttp\Client;
 
 class NominationsController extends AbstractController
@@ -183,7 +184,12 @@ class NominationsController extends AbstractController
       $now = $date->format('Y-m-d H:i:s');
       $match = false;
       $em = $this->getDoctrine()->getManager();
-      $query = $em->createQuery("SELECT e FROM App\Entity\MemberLocal e WHERE e.active = 1 AND e.override != 1 AND e.users_id = ".$id." ");
+      $query = $em->createQuery("
+        SELECT e FROM App\Entity\MemberLocal e
+        WHERE e.active = 1
+        AND e.override != 1
+        AND e.users_id = ".$id."
+        ");
       $locals = $query->getArrayResult();
 
       if (empty($locals)) {
@@ -245,10 +251,15 @@ class NominationsController extends AbstractController
     public function member_find_national_local_boards(Request $request) {
       $data = json_decode($request->getContent(), true);
       $access_key = $data['access_key'];
+      $cycle = $this->current_cycle();
       $response = new \stdClass();
 
       $em = $this->getDoctrine()->getManager();
-      $query = $em->createQuery("SELECT m FROM App\Entity\Member m WHERE m.active = 1 AND m.access_key = '".$access_key."'");
+      $query = $em->createQuery("
+        SELECT m FROM App\Entity\Member m
+        WHERE m.active = 1
+        AND m.access_key = '".$access_key."'
+        ");
       $results = $query->getArrayResult();
 
       if (empty($results) || !$access_key) {
@@ -258,7 +269,93 @@ class NominationsController extends AbstractController
         return new JsonResponse($response, 401);
       }
 
-      return new JsonResponse("You've successfully used the access key to authenticate", 200);
+      $available = new \stdClass();
+
+      $member_query = $em->createQuery("
+        SELECT e FROM App\Entity\MemberLocal e
+        WHERE e.active = 1
+        AND e.override != 1
+        AND e.users_id = ".$results[0]['id']."
+        ");
+      $member = $member_query->getArrayResult();
+
+      $n_query = $em->createQuery("
+        SELECT e FROM App\Entity\ElectionBoards e
+        WHERE e.active = 1
+        AND e.locals_code IS NULL
+        AND e.election_cycles_id = '".$cycle."'
+        ");
+      $national = $n_query->getArrayResult();
+
+      if (sizeof($member) == 1 ) {
+      $l_query = $em->createQuery("
+        SELECT e FROM App\Entity\ElectionBoards e
+        WHERE e.active = 1
+        AND e.locals_code = '".$member[0]['code']."'
+        AND e.election_cycles_id = '".$cycle."'
+        ");
+      $locals = $l_query->getArrayResult();
+      }
+
+      $available->national = $national;
+      $available->locals = $locals;
+
+      $response->status = true;
+      $response->message = "Boards Found!";
+      $response->payload = $available;
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
+    }
+
+    /**
+     * @Route("/api/v1/petitions/positions", name="get_positions_by_petition_id", methods={"POST"})
+     */
+    public function find_petitions_by_id(Request $request) {
+      $response = new \stdClass();
+      $cycle = $this->current_cycle();
+      $data = json_decode($request->getContent(), true);
+      $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
+      $board_id = $data['board_id'];
+      $now = new \DateTime('@'.strtotime('now'));
+
+      if (!$access_key) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $em = $this->getDoctrine()->getManager();
+      $query = $em->createQuery("
+        SELECT e FROM App\Entity\ElectionBoardPositions e
+        WHERE e.active = 1
+        AND e.election_boards_id = '".$board_id."'
+        AND e.election_cycles_id = '".$cycle."'
+        ");
+      $results = $query->getArrayResult();
+
+      $info = $em->getRepository(ElectionBoards::class)->findOneById($board_id);
+
+      $timezone = new \DateTimeZone($info->getTimezone());
+
+      $start = new \DateTime($info->getDateStart(), $timezone);
+      $end = new \DateTime($info->getDateEnd(), $timezone);
+
+      if ( $now < $start || $end < $now ) {
+        $response->status = false;
+        $response->message = "Positions For This Board Has Closed";
+        $response->http_code = 200;
+        return new JsonResponse($response, 200);
+      }
+
+      $start = $start->format('n/d/Y g:ia T');
+      $end = $end->format('n/d/Y g:ia T');
+
+      $response->status = true;
+      $response->message = "Positions Found!";
+      $response->payload = $results;
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
 
     }
 
@@ -454,10 +551,6 @@ class NominationsController extends AbstractController
       } catch (RequestException $exception) {
       return new JsonResponse("City could not be validated at this time.", 200);
       }
-    }
-
-    public function toArray() {
-        return get_object_vars($this);
     }
 
 }

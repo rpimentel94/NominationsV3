@@ -36,15 +36,17 @@ class MemberInformationRepository extends ServiceEntityRepository
     }
     */
 
-    /*
-    public function findOneBySomeField($value): ?MemberInformation
+
+    public function findOneByUserId($user_id, $cycle): ?MemberInformation
     {
         return $this->createQueryBuilder('m')
-            ->andWhere('m.exampleField = :val')
-            ->setParameter('val', $value)
+            ->andWhere('m.users_id = :val')
+            ->andWhere('m.election_cycles_id = :cycle')
+            ->setParameter('val', $user_id)
+            ->setParameter('cycle', $cycle)
             ->getQuery()
             ->getOneOrNullResult()
         ;
     }
-    */
+
 }

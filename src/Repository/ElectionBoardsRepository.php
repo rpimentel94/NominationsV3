@@ -47,4 +47,17 @@ class ElectionBoardsRepository extends ServiceEntityRepository
         ;
     }
 
+    public function getCurrentNational($cycle): ?ElectionBoards
+    {
+      $name = "National";
+        return $this->createQueryBuilder('e')
+            ->andWhere('e.boards_name = :name')
+            ->andWhere('e.election_cycles_id = :current')
+            ->setParameter('name', $name)
+            ->setParameter('current', $cycle)
+            ->getQuery()
+            ->getOneOrNullResult()
+        ;
+    }
+
 }

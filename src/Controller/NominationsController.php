@@ -10,6 +10,7 @@ use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpClient\HttpClient;
 use App\Entity\Member;
+use App\Entity\Petitions;
 use App\Entity\MemberLocal;
 use App\Entity\MemberInformation;
 use App\Entity\ElectionCycles;
@@ -360,10 +361,11 @@ class NominationsController extends AbstractController
     }
 
     /**
-     * @Route("/api/v1/petitions/member/contact-information/save", name="member_save_contact_information", methods={"POST"})
+     * @Route("/api/v1/petitions/create", name="member_create_petition", methods={"POST"})
      */
-    public function member_save_contact_information(Request $request) {
+    public function member_create_petition(Request $request) {
       $response = new \stdClass();
+      $cycle = $this->current_cycle();
       $data = json_decode($request->getContent(), true);
       $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
 
@@ -383,6 +385,57 @@ class NominationsController extends AbstractController
         $response->http_code = 401;
         return new JsonResponse($response, 401);
       }
+
+      $users_id = $data['member_information']['users_id'];
+      $member = $data['member_information'];
+      $petition_id = $data['petition_id'];
+      $board_id = $data['board_id'];
+      $member_info = $em->getRepository(MemberInformation::class)->findOneByUserId($users_id, $cycle);
+      if (empty($member_info)) {
+      $create_info = $this->member_save_contact_information($member);
+      } else {
+      $update_info = $this->member_edit_contact_information($member, $access_key);
+      }
+
+      $info = $em->getRepository(ElectionBoards::class)->getCurrentNational($cycle);
+      $national_id = $info->getId();
+      $is_national = ($national_id == $board_id ? 1 : 0);
+
+      foreach ($petition_id as $new_petition) {
+
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
+      $em = $this->getDoctrine()->getManager();
+      $petition = new Petitions;
+      $petition->setUsersId($users_id);
+      $petition->setElectionCyclesId($cycle);
+      $petition->setElectionBoardsId($board_id);
+      $petition->setElectionBoardPositionsId($new_petition);
+      $petition->setConsentToServe(1);
+      $petition->setAgreementSignature(1);
+      $petition->setLmrdaNotice(1);
+      $petition->setPhotoRelease(1);
+      $petition->setWithdrawn(0);
+      $petition->setPreliminaryEligibilityCheck(0);
+      $petition->setFinalEligibility(0);
+      $petition->setOnlineSignatureStatus(0);
+      $petition->setNational($is_national);
+      $petition->setActive(1);
+      $petition->setDateModified($now);
+      $petition->setDateCreated($now);
+      $em->persist($petition);
+      $em->flush();
+
+      }
+
+      $response->status = true;
+      $response->message = "Positions Submitted Successfully!";
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
+
+    }
+
+    public function member_save_contact_information($data) {
 
       $errors = false;
       $messages = new \stdClass();
@@ -472,10 +525,7 @@ class NominationsController extends AbstractController
       $em->persist($member_contact_info);
       $em->flush();
 
-      $response->status = true;
-      $response->message = "Contact Information Saved Successfully!";
-      $response->http_code = 200;
-      return new JsonResponse($response, 200);
+      return true;
 
       } catch (RequestException $exception) {
         $response->status = false;
@@ -486,13 +536,11 @@ class NominationsController extends AbstractController
 
     }
 
-    /**
-     * @Route("/api/v1/petitions/member/contact-information/edit", name="member_edit_contact_information", methods={"POST"})
-     */
-    public function member_edit_contact_information(Request $request) {
+
+    public function member_edit_contact_information($member, $access_key) {
       $response = new \stdClass();
-      $data = json_decode($request->getContent(), true);
-      $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
+
+      return true;
 
       if (!$access_key) {
         $response->status = false;
@@ -540,6 +588,8 @@ class NominationsController extends AbstractController
     }
 
     function validCityState($search) {
+      return true;
+      //Figure out SSL Issue
       try {
       $client = new \GuzzleHttp\Client(['base_uri' => 'https://www.weather-forecast.com']);
       $request = $client->request('GET', '/locations/ac_location_name?query=' . $search);

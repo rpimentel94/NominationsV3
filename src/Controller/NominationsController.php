@@ -15,6 +15,7 @@ use App\Entity\MemberLocal;
 use App\Entity\MemberInformation;
 use App\Entity\ElectionCycles;
 use App\Entity\ElectionBoards;
+use App\Entity\Statement;
 use GuzzleHttp\Client;
 
 class NominationsController extends AbstractController
@@ -247,6 +248,99 @@ class NominationsController extends AbstractController
     }
 
     /**
+     * @Route("/api/v1/petitions/member/current-petitions", name="member_current_petitions", methods={"GET"})
+     */
+    public function member_get_all_petitions(Request $request) {
+      $data = json_decode($request->getContent(), true);
+      $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
+      $cycle = $this->current_cycle();
+      $response = new \stdClass();
+
+      if (!$access_key) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $em = $this->getDoctrine()->getManager();
+      $member = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
+      $users_id = $member->getId();
+
+      $query = $em->createQuery("
+        SELECT p FROM App\Entity\Petitions p
+        INNER JOIN App\Entity\Member m
+        WHERE p.users_id = :id")
+        ->setParameter('id' , $users_id);
+      $results = $query->getArrayResult();
+
+      $national = array();
+      $local = array();
+
+      foreach ($results as $result) {
+
+        $query = $em->createQuery("
+          SELECT s.id FROM App\Entity\Statement s
+          INNER JOIN App\Entity\Petitions p
+          WHERE p.id = :id
+          AND s.petition_id = p.id
+          ORDER BY s.id DESC
+          ")
+          ->setParameter('id' , $result['id']);
+        $query->setMaxResults(1);
+        $statements = $query->getArrayResult();
+        if ($statements) {
+        $result['statement_id'] = $statements[0]['id'];
+        }
+
+        $info = $this->get_petition_info($result['election_boards_id']);
+        $result['info'] = $info;
+
+        if ($result['national']) {
+          array_push($national, $result);
+        } else {
+          array_push($local, $result);
+        }
+      }
+
+      $petitions = new \stdClass();
+      $petitions->national = $national;
+      $petitions->local = $local;
+
+      if ($results) {
+      $response->status = true;
+      $response->message = "Petitions Found!";
+      $response->payload = $petitions;
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
+      } else {
+        $response->status = true;
+        $response->message = "Memeber Has Not Submitted Any Petitions";
+        $response->http_code = 200;
+        return new JsonResponse($response, 200);
+      }
+    }
+
+    function get_petition_info($board_id) {
+      $em = $this->getDoctrine()->getManager();
+      $query = $em->createQuery("
+        SELECT e.id, e.position, e.position_2, e.signatures_required, e.delegate, p.boards_name, p.date_end, p.timezone FROM App\Entity\ElectionBoardPositions e
+        INNER JOIN App\Entity\ElectionBoards p
+        WHERE e.id = :id
+        AND e.election_boards_id = p.id
+        ")
+        ->setParameter('id' , $board_id);
+      $result = $query->getArrayResult();
+
+      $timezone = new \DateTimeZone($result[0]['timezone']);
+      $date_end = $result[0]['date_end'];
+      $end = new \DateTime($date_end, $timezone);
+      $result[0]['display_date'] = $end->format('n/d/Y g:ia T');
+
+      return $result;
+    }
+
+    /**
      * @Route("/api/v1/petitions/member/all", name="member_local_national", methods={"POST"})
      */
     public function member_find_national_local_boards(Request $request) {
@@ -377,24 +471,24 @@ class NominationsController extends AbstractController
       }
 
       $em = $this->getDoctrine()->getManager();
-      $member = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
+      $member_account = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
 
-      if (!$member) {
+      if (!$member_account) {
         $response->status = false;
         $response->message = "Member Record Could Not Be Found.";
         $response->http_code = 401;
         return new JsonResponse($response, 401);
       }
 
-      $users_id = $data['member_information']['users_id'];
+      $users_id = $member_account->getId();
       $member = $data['member_information'];
       $petition_id = $data['petition_id'];
       $board_id = $data['board_id'];
       $member_info = $em->getRepository(MemberInformation::class)->findOneByUserId($users_id, $cycle);
       if (empty($member_info)) {
-      $create_info = $this->member_save_contact_information($member);
+      $create_info = $this->member_save_contact_information($member, $users_id);
       } else {
-      $update_info = $this->member_edit_contact_information($member, $access_key);
+      $update_info = $this->member_edit_contact_information($member, $access_key, $cycle, $users_id);
       }
 
       $info = $em->getRepository(ElectionBoards::class)->getCurrentNational($cycle);
@@ -435,7 +529,57 @@ class NominationsController extends AbstractController
 
     }
 
-    public function member_save_contact_information($data) {
+    /**
+     * @Route("/api/v1/petitions/create-statement", name="member_create_statement", methods={"POST"})
+     */
+    public function member_create_statement(Request $request) {
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
+      $response = new \stdClass();
+      $cycle = $this->current_cycle();
+      $data = json_decode($request->getContent(), true);
+      $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
+      $petition_id = $data['petition_id'];
+
+      if (!$access_key) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $em = $this->getDoctrine()->getManager();
+      $member_account = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
+
+      if (!$member_account) {
+        $response->status = false;
+        $response->message = "Member Record Could Not Be Found.";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $text = trim($data['statement']);
+      $text = stripslashes($text);
+      $text = htmlspecialchars($text);
+
+      $em = $this->getDoctrine()->getManager();
+      $statement = new Statement;
+      $statement->setPetitionId($petition_id);
+      $statement->setStatement($text);
+      $statement->setActive(1);
+      $statement->setDateCreated($now);
+      $em->persist($statement);
+      $em->flush();
+
+      $response->status = true;
+      $response->message = "Statement Submitted Successfully!";
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
+
+    }
+
+
+    public function member_save_contact_information($data, $users_id) {
 
       $errors = false;
       $messages = new \stdClass();
@@ -505,7 +649,7 @@ class NominationsController extends AbstractController
       $em = $this->getDoctrine()->getManager();
       $member_contact_info = new MemberInformation;
       $cycle = $this->current_cycle();
-      $member_contact_info->setUsersId($data['users_id']);
+      $member_contact_info->setUsersId($users_id);
       $member_contact_info->setBallotDisplayName($data['ballot_display_name']);
       $member_contact_info->setAddress1($data['address_1']);
       $member_contact_info->setAddress2($data['address_2']);
@@ -537,10 +681,10 @@ class NominationsController extends AbstractController
     }
 
 
-    public function member_edit_contact_information($member, $access_key) {
+    public function member_edit_contact_information($member, $access_key, $cycle, $users_id) {
       $response = new \stdClass();
-
-      return true;
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
 
       if (!$access_key) {
         $response->status = false;
@@ -549,8 +693,20 @@ class NominationsController extends AbstractController
         return new JsonResponse($response, 401);
       }
 
+      $media_contact = false;
+      if ( $member['media_contact'] == 1 || $member['media_contact'] == true || $member['media_contact'] == 'true' ) {
+        $media_contact = true;
+      }
+
       $em = $this->getDoctrine()->getManager();
-      $member = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
+      $update = $em->getRepository(MemberInformation::class)->findOneByUserId($users_id, $cycle);
+      $update->setMediaContact($media_contact);
+      $update->setMediaEmail($member['media_email']);
+      $update->setMediaPhone($member['media_phone']);
+      $update->setDateModified($now);
+      $em->flush();
+
+      return true;
     }
 
     /**

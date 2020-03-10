@@ -578,6 +578,50 @@ class NominationsController extends AbstractController
 
     }
 
+    /**
+     * @Route("/api/v1/petitions/get-statement", name="member_get_statement", methods={"GET"})
+     */
+    public function member_get_statement(Request $request) {
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
+      $response = new \stdClass();
+      $cycle = $this->current_cycle();
+      $data = json_decode($request->getContent(), true);
+      $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
+      $statement_id = $data['statement_id'];
+
+      if (!$access_key) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $em = $this->getDoctrine()->getManager();
+      $member_account = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
+
+      if (!$member_account) {
+        $response->status = false;
+        $response->message = "Member Record Could Not Be Found.";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $search = $em->getRepository(Statement::class)->findOneById($statement_id);
+
+      $statement = new \stdClass();
+      $statement->statement_id = $search->getId();
+      $statement->petition_id = $search->getPetitionId();
+      $statement->statement = $search->getStatement();
+
+      $response->status = true;
+      $response->message = "Statement Found!";
+      $response->payload = $statement;
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
+
+    }
+
 
     public function member_save_contact_information($data, $users_id) {
 

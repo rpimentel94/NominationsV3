@@ -5,9 +5,9 @@ namespace App\Entity;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
- * @ORM\Entity(repositoryClass="App\Repository\StatementRepository")
+ * @ORM\Entity(repositoryClass="App\Repository\PetitionSignaturesRepository")
  */
-class Statement
+class PetitionSignatures
 {
     /**
      * @ORM\Id()
@@ -19,12 +19,12 @@ class Statement
     /**
      * @ORM\Column(type="integer")
      */
-    private $petition_id;
+    private $users_id;
 
     /**
-     * @ORM\Column(type="string", length=2000, nullable=true)
+     * @ORM\Column(type="integer")
      */
-    private $statement;
+    private $petition_id;
 
     /**
      * @ORM\Column(type="boolean")
@@ -41,6 +41,18 @@ class Statement
         return $this->id;
     }
 
+    public function getUsersId(): ?int
+    {
+        return $this->users_id;
+    }
+
+    public function setUsersId(int $users_id): self
+    {
+        $this->users_id = $users_id;
+
+        return $this;
+    }
+
     public function getPetitionId(): ?int
     {
         return $this->petition_id;
@@ -49,18 +61,6 @@ class Statement
     public function setPetitionId(int $petition_id): self
     {
         $this->petition_id = $petition_id;
-
-        return $this;
-    }
-
-    public function getStatement(): ?string
-    {
-        return $this->statement;
-    }
-
-    public function setStatement(?string $statement): self
-    {
-        $this->statement = $statement;
 
         return $this;
     }

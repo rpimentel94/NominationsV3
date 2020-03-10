@@ -8,17 +8,16 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use App\Controller\NominationsController;
 use App\Entity\Member;
+use App\Entity\PetitionSignatures;
 use GuzzleHttp\Client;
 
 class SigningController extends AbstractController
 {
   /**
-   * @Route("/api/v1/petitions/signing", name="get_petitions_by_signing_route", methods={"GET"})
+   * @Route("/api/v1/petitions/find", name="get_petitions_by_signing_route", methods={"GET"})
    */
    public function get_petitions_by_signing_route(Request $request) {
-     $service = new NominationsController();
      $data = json_decode($request->getContent(), true);
      $access_key = $data['access_key'];
      $signing_route = $data['signing_route'];
@@ -41,7 +40,12 @@ class SigningController extends AbstractController
        return new JsonResponse($response, 200);
      }
 
-     $all_signatures = $this->get_member_signing_history($member->getId());
+     $signatures = $this->get_member_signing_history($member->getId());
+
+     $signed = array();
+     foreach ($signatures as $signature) {
+       array_push($signed, $signature['petition_id']);
+     }
 
      $query = $em->createQuery("
        SELECT p FROM App\Entity\Petitions p
@@ -56,6 +60,12 @@ class SigningController extends AbstractController
      $signing_locals = array();
 
      foreach ($results as $result) {
+
+       if (in_array($result['id'], $signed)) {
+         $result['already_signed'] = true;
+       } else {
+         $result['already_signed'] = false;
+       }
 
        $info = $this->get_petition_info($result['election_boards_id']);
        $result['info'] = $info;
@@ -140,4 +150,52 @@ class SigningController extends AbstractController
     $petitions = $query->getArrayResult();
     return $petitions;
   }
+
+  /**
+   * @Route("/api/v1/petitions/sign-petitions", name="sign_petitions", methods={"POST"})
+   */
+   public function sign_petitions(Request $request) {
+     $data = json_decode($request->getContent(), true);
+     $access_key = $data['access_key'];
+     $petitions = $data['petitions'];
+     $response = new \stdClass();
+
+     if (!$access_key) {
+       $response->status = false;
+       $response->message = "This is a locked route, please try again";
+       $response->http_code = 401;
+       return new JsonResponse($response, 401);
+     }
+
+     $em = $this->getDoctrine()->getManager();
+     $member = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
+     $users_id = $member->getId();
+
+     if (!$member) {
+       $response->status = true;
+       $response->message = "No Member Can Be Found With Signing Route";
+       $response->http_code = 200;
+       return new JsonResponse($response, 200);
+     }
+
+     $date = new \DateTime('@'.strtotime('now'));
+     $now = $date->format('Y-m-d H:i:s');
+
+     foreach ( $petitions as $petition ) {
+       $em = $this->getDoctrine()->getManager();
+       $signature = new PetitionSignatures;
+       $signature->setUsersId($users_id);
+       $signature->setPetitionId($petition);
+       $signature->setActive(1);
+       $signature->setDateCreated($now);
+       $em->persist($signature);
+       $em->flush();
+     }
+
+     $response->status = true;
+     $response->message = "Petitions Signed Successfully!";
+     $response->http_code = 200;
+     return new JsonResponse($response, 200);
+
+   }
 }

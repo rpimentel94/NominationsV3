@@ -277,6 +277,8 @@ class NominationsController extends AbstractController
       $national = array();
       $local = array();
 
+      if ($results) {
+
       foreach ($results as $result) {
 
         $query = $em->createQuery("
@@ -294,6 +296,9 @@ class NominationsController extends AbstractController
         }
 
         $info = $this->get_petition_info($result['election_boards_id']);
+        $count = $this->get_signature_count($result['id']);
+
+        $result['signature_count'] = $count;
         $result['info'] = $info;
 
         if ($result['national']) {
@@ -307,7 +312,6 @@ class NominationsController extends AbstractController
       $petitions->national = $national;
       $petitions->local = $local;
 
-      if ($results) {
       $response->status = true;
       $response->message = "Petitions Found!";
       $response->payload = $petitions;
@@ -338,6 +342,20 @@ class NominationsController extends AbstractController
       $result[0]['display_date'] = $end->format('n/d/Y g:ia T');
 
       return $result;
+    }
+
+    function get_signature_count($id) {
+      $em = $this->getDoctrine()->getManager();
+      $query = $em->createQuery("
+        SELECT e.id FROM App\Entity\PetitionSignatures e
+        WHERE e.id = :id
+        ")
+        ->setParameter('id' , $id);
+      $result = $query->getArrayResult();
+
+      $results = count($result);
+
+      return $results;
     }
 
     /**

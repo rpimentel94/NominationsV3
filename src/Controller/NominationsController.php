@@ -803,4 +803,52 @@ class NominationsController extends AbstractController
       }
     }
 
+    /**
+     * @Route("/api/v1/authenticate/member/sso", name="member_sso", methods={"POST"})
+     */
+    public function member_sso(Request $request) {
+      $response = new \stdClass();
+      $payload = new \stdClass();
+      $data = json_decode($request->getContent(), true);
+      $encrypted_username = $data['hash'];
+
+      if (!$encrypted_username) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $secret_key = 'mwktDOADkt';
+      $secret_iv = '9A65BC721D2B697BA1B61956FAA1E';
+      $encrypt_method = "AES-256-CBC";
+      $key = hash( 'sha256', $secret_key );
+      $iv = substr( hash( 'sha256', $secret_iv ), 0, 16 );
+
+      $username = openssl_decrypt( base64_decode( $encrypted_username ), $encrypt_method, $key, 0, $iv );
+
+      $em = $this->getDoctrine()->getManager();
+      $query = $em->createQuery("
+        SELECT m FROM App\Entity\Member m
+        WHERE m.username = '".$username."'
+      ");
+
+      $results = $query->getArrayResult();
+        if (empty($results)) {
+          $member = $this->get_member_information($username);
+          $insert = $this->member_create($member, $username);
+          $payload->access_key = $insert;
+        } else {
+          $update = $this->update_member_information($username, $results[0]);
+          $update = $this->update_member_local($username, $results[0]);
+          $payload->access_key = $results[0]["access_key"];
+        }
+      $response->status = true;
+      $response->message = "Member Authenticated Successfully";
+      $response->payload = $payload;
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
+
+    }
+
 }

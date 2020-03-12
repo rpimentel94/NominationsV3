@@ -36,15 +36,15 @@ class PetitionsRepository extends ServiceEntityRepository
     }
     */
 
-    /*
-    public function findOneBySomeField($value): ?Petitions
+    public function findOneByUserIdAndPetitionId($users_id, $petition_id): ?Petitions
     {
         return $this->createQueryBuilder('p')
-            ->andWhere('p.exampleField = :val')
-            ->setParameter('val', $value)
+            ->andWhere('p.users_id = :user')
+            ->andWhere('p.id = :id')
+            ->setParameter('user', $users_id)
+            ->setParameter('id', $petition_id)
             ->getQuery()
             ->getOneOrNullResult()
         ;
     }
-    */
 }

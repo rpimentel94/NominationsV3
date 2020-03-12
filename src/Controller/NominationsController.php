@@ -42,6 +42,8 @@ class NominationsController extends AbstractController
     return $this->getDoctrine()->getManager()->getRepository(ElectionCycles::class)->findOneByActive()->getId();
     }
 
+    ################################# Nominations v3 Member Authneticate & General Account Logic ############################################################
+
     /**
      * @Route("/api/v1/authenticate/member", name="member_athenticate", methods={"POST"})
      */
@@ -246,6 +248,8 @@ class NominationsController extends AbstractController
 
         }
     }
+
+    ##################################################### Nominations v3 Get Petition Information along with Statement, Signatures & Photos ###################################
 
     /**
      * @Route("/api/v1/petitions/member/current-petitions", name="member_current_petitions", methods={"GET"})
@@ -820,6 +824,53 @@ class NominationsController extends AbstractController
       return new JsonResponse("City could not be validated at this time.", 200);
       }
     }
+
+    ######################################### Nominations v3 Withdraw Petition ##########################################
+
+    /**
+     * @Route("/api/v1/petitions/withdraw", name="member_withdraw_petition", methods={"POST"})
+     */
+    public function member_withdraw_petition(Request $request) {
+
+      $response = new \stdClass();
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
+      $data = json_decode($request->getContent(), true);
+      $access_key = (isset($data['access_key']) ? $data['access_key'] : false);
+      $petition_id = $data['petition_id'];
+
+      if (!$access_key) {
+        $response->status = false;
+        $response->message = "This is a locked route, please try again";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $em = $this->getDoctrine()->getManager();
+      $member = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
+      if (!$member) {
+        $response->status = false;
+        $response->message = "Member Record Could Not Be Found.";
+        $response->http_code = 401;
+        return new JsonResponse($response, 401);
+      }
+
+      $user_id = $member->getId();
+
+      $em = $this->getDoctrine()->getManager();
+      $update = $em->getRepository(Petitions::class)->findOneByUserIdAndPetitionId($user_id, $petition_id);
+      $update->setWithdrawn(1);
+      $update->setDateModified($now);
+      $em->flush();
+
+      $response->status = true;
+      $response->message = "Petition Withdrawn Successfully!";
+      $response->http_code = 200;
+      return new JsonResponse($response, 200);
+
+    }
+
+    ######################################### Nominations v3 Member SSO from Drupal 8 ###################################
 
     /**
      * @Route("/api/v1/authenticate/member/sso", name="member_sso", methods={"POST"})

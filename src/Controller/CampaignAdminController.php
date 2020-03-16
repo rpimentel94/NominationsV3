@@ -83,7 +83,7 @@ class CampaignAdminController extends AbstractController
 
     $em = $this->getDoctrine()->getManager();
     $member = $em->getRepository(Member::class)->findOneByMemberAccessKey($access_key);
-    $user_id = $member->getId()''
+    $user_id = $member->getId();
 
     if (!$member) {
       $response->status = false;

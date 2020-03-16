@@ -85,4 +85,17 @@ class MemberRepository extends ServiceEntityRepository
             ->getOneOrNullResult()
         ;
     }
+
+    public function findOneByAdminCode($code): ?Member
+    {
+        return $this->createQueryBuilder('m')
+            ->andWhere('m.administration_code = :val')
+            ->andWhere('m.active = :num')
+            ->setParameter('val', $code)
+            ->setParameter('num', 1)
+            ->getQuery()
+            ->getOneOrNullResult()
+        ;
+    }
+
 }

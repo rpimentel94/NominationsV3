@@ -308,7 +308,7 @@ class NominationsController extends AbstractController
         $result['info'] = $info;
 
 
-        if ($result['national'] == 1) {
+        if ($result['national']) {
           array_push($national, $result);
         } else {
           array_push($local, $result);

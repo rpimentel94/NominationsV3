@@ -274,7 +274,8 @@ class NominationsController extends AbstractController
       $query = $em->createQuery("
         SELECT p FROM App\Entity\Petitions p
         INNER JOIN App\Entity\Member m
-        WHERE p.users_id = :id")
+        WHERE p.users_id = m.id
+        AND p.users_id = :id")
         ->setParameter('id' , $users_id);
       $results = $query->getArrayResult();
 
@@ -295,17 +296,19 @@ class NominationsController extends AbstractController
           ->setParameter('id' , $result['id']);
         $query->setMaxResults(1);
         $statements = $query->getArrayResult();
+
         if ($statements) {
         $result['statement_id'] = $statements[0]['id'];
         }
 
-        $info = $this->get_petition_info($result['election_boards_id']);
+        $info = $this->get_petition_info($result['election_board_positions_id']);
         $count = $this->get_signature_count($result['id']);
 
         $result['signature_count'] = $count;
         $result['info'] = $info;
 
-        if ($result['national']) {
+
+        if ($result['national'] == 1) {
           array_push($national, $result);
         } else {
           array_push($local, $result);

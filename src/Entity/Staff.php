@@ -29,15 +29,15 @@ class Staff
     /**
      * @ORM\Column(type="integer")
      */
-    private $election_cycle_id;
+    private $election_cycles_id;
 
     /**
-     * @ORM\Column(type="integer", nullable=true)
+     * @ORM\Column(type="string", length=255, nullable=true)
      */
     private $date_created;
 
     /**
-     * @ORM\Column(type="integer", nullable=true)
+     * @ORM\Column(type="string", length=255, nullable=true)
      */
     private $date_modified;
 
@@ -80,36 +80,36 @@ class Staff
         return $this;
     }
 
-    public function getElectionCycleId(): ?int
+    public function getElectionCyclesId(): ?int
     {
-        return $this->election_cycle_id;
+        return $this->election_cycles_id;
     }
 
-    public function setElectionCycleId(int $election_cycle_id): self
+    public function setElectionCyclesId(int $election_cycles_id): self
     {
-        $this->election_cycle_id = $election_cycle_id;
+        $this->election_cycles_id = $election_cycles_id;
 
         return $this;
     }
 
-    public function getDateCreated(): ?int
+    public function getDateCreated(): ?string
     {
         return $this->date_created;
     }
 
-    public function setDateCreated(?int $date_created): self
+    public function setDateCreated(?string $date_created): self
     {
         $this->date_created = $date_created;
 
         return $this;
     }
 
-    public function getDateModified(): ?int
+    public function getDateModified(): ?string
     {
         return $this->date_modified;
     }
 
-    public function setDateModified(?int $date_modified): self
+    public function setDateModified(?string $date_modified): self
     {
         $this->date_modified = $date_modified;
 

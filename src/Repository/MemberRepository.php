@@ -62,15 +62,40 @@ class MemberRepository extends ServiceEntityRepository
     }
     */
 
-    /*
-    public function findOneBySomeField($value): ?Member
+    public function findOneByMemberAccessKey($access_key): ?Member
     {
         return $this->createQueryBuilder('m')
-            ->andWhere('m.exampleField = :val')
-            ->setParameter('val', $value)
+            ->andWhere('m.access_key = :val')
+            ->andWhere('m.active = :num')
+            ->setParameter('val', $access_key)
+            ->setParameter('num', 1)
             ->getQuery()
             ->getOneOrNullResult()
         ;
     }
-    */
+
+    public function findOneByUserId($id): ?Member
+    {
+        return $this->createQueryBuilder('m')
+            ->andWhere('m.id = :val')
+            ->andWhere('m.active = :num')
+            ->setParameter('val', $id)
+            ->setParameter('num', 1)
+            ->getQuery()
+            ->getOneOrNullResult()
+        ;
+    }
+
+    public function findOneByAdminCode($code): ?Member
+    {
+        return $this->createQueryBuilder('m')
+            ->andWhere('m.administration_code = :val')
+            ->andWhere('m.active = :num')
+            ->setParameter('val', $code)
+            ->setParameter('num', 1)
+            ->getQuery()
+            ->getOneOrNullResult()
+        ;
+    }
+
 }

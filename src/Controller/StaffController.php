@@ -9,35 +9,50 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use App\Entity\Staff;
-use App\Repository\MemberRepository;
+use App\Entity\ElectionCycles;
 use GuzzleHttp\Client;
 
 class StaffController extends AbstractController
 {
+
+    /** Symfony Commands to make life easlier
+    *
+    */
+
+    /*
+    composer dump-autoload --classmap-authoritative "Class can not be found in blah"
+
+    */
+
+    public function current_cycle() {
+    return $this->getDoctrine()->getManager()->getRepository(ElectionCycles::class)->findOneByActive()->getId();
+    }
 
     /**
      * @Route("/api/v1/authenticate/staff", name="staff_authenticate")
      */
      public function staff_authenticate(Request $request) {
 
-        $response = new \stdClass();
         $data = json_decode($request->getContent(), true);
         $username = $data['username'];
         $password = $data['password'];
+        $response = new \stdClass();
+        $payload = new \stdClass();
 
         $adServer = "ldap://bumsdc01.sag.org";
 
         $ldap = ldap_connect($adServer);
-
         $ldaprdn = 'sag' . "\\" . $username;
-
         ldap_set_option($ldap, LDAP_OPT_PROTOCOL_VERSION, 3);
         ldap_set_option($ldap, LDAP_OPT_REFERRALS, 0);
         try {
         $bind = ldap_bind($ldap, $ldaprdn, $password);
         @ldap_close($ldap);
-        } catch(\Exception $e){
-        return new JsonResponse("Account Failed to Authenticate", 401);
+        } catch(\Exception $e) {
+          $response->status = false;
+          $response->message = "Staff Failed to Authenticate";
+          $response->http_code = 401;
+          return new JsonResponse($response, 401);
         }
         $staff = $this->staff_find($username);
 
@@ -48,24 +63,25 @@ class StaffController extends AbstractController
             WHERE s.username = '".$username."'
           ");
           $results = $query->getArrayResult();
+
           if (empty($results)) {
-            if (strpos($staff['dn'], 'Terminated') !== false) {
-              $response->status = false;
-              $response->success = "Your Account is not Authorized to Access this Application";
-              $response->http_code = 401;
-              return new JsonResponse($response, 401);
+            if (strpos($staff['data']['dn'], 'Terminated') !== false) {
+            $response->status = false;
+            $response->message = "Your Account is not Authorized to Access this Application";
+            $response->http_code = 401;
+            return new JsonResponse($response, 401);
             }
-            $insert = $this->staff_create($staff);
+            $payload->insert = $this->staff_create($staff);
             $response->status = true;
-            $response->success = "Staff Authneticated Successfully";
-            $response->info = $insert;
+            $response->message = "Staff Authenticated Successfully";
+            $response->payload = $payload;
             $response->http_code = 200;
             return new JsonResponse($response, 200);
-          } else {
-            $access_key = $results[0]["access_key"];
+           } else {
+            $payload->access_key = $results[0]["access_key"];
             $response->status = true;
-            $response->success = "Staff Authneticated Successfully";
-            $response->access_key = $access_key;
+            $response->message = "Staff Authenticated Successfully";
+            $response->payload = $payload;
             $response->http_code = 200;
             return new JsonResponse($response, 200);
           }
@@ -91,13 +107,15 @@ class StaffController extends AbstractController
     function staff_create($staff_info) {
       $entityManager = $this->getDoctrine()->getManager();
       $staff = new Staff;
-      $now = time();
+      $date = new \DateTime('@'.strtotime('now'));
+      $now = $date->format('Y-m-d H:i:s');
       $hash_key = bin2hex(random_bytes(32));
+      $cycle = $this->current_cycle();
 
       $staff->setUsername($staff_info['data']['samaccountname']);
       $staff->setElection($staff_info['data']['location']);
       $staff->setAccessKey($hash_key);
-      $staff->setElectionCycleId(1);
+      $staff->setElectionCyclesId($cycle);
       $staff->setActive(1);
       $staff->setDateCreated($now);
       $staff->setDateModified($now);

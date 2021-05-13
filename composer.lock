@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "1015a248ed5427801174c65df0bcc99d",
+    "content-hash": "819ca91c9acf609feccc96be2b258678",
     "packages": [
         {
             "name": "composer/package-versions-deprecated",
@@ -1212,6 +1212,7 @@
                 "reflection",
                 "static"
             ],
+            "abandoned": "roave/better-reflection",
             "time": "2020-01-08T19:53:19+00:00"
         },
         {
@@ -1262,6 +1263,7 @@
                 "faker",
                 "fixtures"
             ],
+            "abandoned": true,
             "time": "2019-12-12T13:22:17+00:00"
         },
         {
@@ -3931,20 +3933,21 @@
         },
         {
             "name": "symfony/security-guard",
-            "version": "v5.0.4",
+            "version": "v5.2.8",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/security-guard.git",
-                "reference": "5813e1b39d8a1dd46f0b96e6ebe4dd4518d0b302"
+                "reference": "8137325674edfdecf7367e40804d8ee9525b87e0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/security-guard/zipball/5813e1b39d8a1dd46f0b96e6ebe4dd4518d0b302",
-                "reference": "5813e1b39d8a1dd46f0b96e6ebe4dd4518d0b302",
+                "url": "https://api.github.com/repos/symfony/security-guard/zipball/8137325674edfdecf7367e40804d8ee9525b87e0",
+                "reference": "8137325674edfdecf7367e40804d8ee9525b87e0",
                 "shasum": ""
             },
             "require": {
-                "php": "^7.2.5",
+                "php": ">=7.2.5",
+                "symfony/polyfill-php80": "^1.15",
                 "symfony/security-core": "^5.0",
                 "symfony/security-http": "^4.4.1|^5.0.1"
             },
@@ -3952,11 +3955,6 @@
                 "psr/log": "~1.0"
             },
             "type": "library",
-            "extra": {
-                "branch-alias": {
-                    "dev-master": "5.0-dev"
-                }
-            },
             "autoload": {
                 "psr-4": {
                     "Symfony\\Component\\Security\\Guard\\": ""
@@ -3981,7 +3979,21 @@
             ],
             "description": "Symfony Security Component - Guard",
             "homepage": "https://symfony.com",
-            "time": "2020-01-08T17:33:29+00:00"
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2021-05-12T13:14:35+00:00"
         },
         {
             "name": "symfony/security-http",
